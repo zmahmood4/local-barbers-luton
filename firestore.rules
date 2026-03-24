@@ -1,0 +1,32 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Bookings ─────────────────────────────────────────────
+    // Anyone can create a booking (client booking flow)
+    // Anyone can read a booking (needed for manage booking lookup)
+    // Anyone can update a booking (reschedule / cancel via booking number + name)
+    // Nobody can delete bookings (soft cancel only)
+    match /bookings/{bookingId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasAll([
+        'name', 'nameLower', 'phone', 'date', 'time',
+        'serviceId', 'serviceName', 'servicePrice',
+        'bookingNumber', 'status', 'createdAt'
+      ]);
+      allow update: if true;
+      allow delete: if false;
+    }
+
+    // ── Settings (availability, services, FCM token) ──────────
+    // Anyone can read settings (needed to display hours/services)
+    // Write is open here because there's no backend auth.
+    // For production hardening: restrict writes to a Cloud Function
+    // or use Firebase App Check to block non-browser clients.
+    match /settings/{document} {
+      allow read: if true;
+      allow write: if true;
+    }
+  }
+}
