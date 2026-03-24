@@ -1,13 +1,20 @@
 const { Resend } = require('resend')
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-const BARBER_EMAIL = process.env.BARBER_EMAIL
-const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@localbarbersluton.co.uk'
-
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' }
   }
+
+  const RESEND_API_KEY = process.env.RESEND_API_KEY
+  const BARBER_EMAIL   = process.env.BARBER_EMAIL
+  const FROM_EMAIL     = process.env.FROM_EMAIL || 'noreply@localbarbersluton.co.uk'
+
+  if (!RESEND_API_KEY) {
+    console.error('RESEND_API_KEY environment variable is not set')
+    return { statusCode: 500, body: JSON.stringify({ error: 'Email service not configured' }) }
+  }
+
+  const resend = new Resend(RESEND_API_KEY)
 
   let body
   try {
@@ -28,13 +35,13 @@ exports.handler = async (event) => {
   const testEmail = process.env.TEST_EMAIL
 
   if (BARBER_EMAIL) {
-    promises.push(sendBarberEmail(type, booking, testEmail || BARBER_EMAIL))
+    promises.push(sendBarberEmail(resend, FROM_EMAIL, type, booking, testEmail || BARBER_EMAIL))
   } else {
     console.warn('BARBER_EMAIL not set — skipping barber notification')
   }
 
   if (booking.email) {
-    promises.push(sendClientEmail(type, booking, testEmail || booking.email))
+    promises.push(sendClientEmail(resend, FROM_EMAIL, type, booking, testEmail || booking.email))
   }
 
   try {
@@ -46,7 +53,7 @@ exports.handler = async (event) => {
   }
 }
 
-async function sendBarberEmail(type, booking, to) {
+async function sendBarberEmail(resend, FROM_EMAIL, type, booking, to) {
   const subjects = {
     new:    `New Booking — ${booking.name} (${booking.bookingNumber})`,
     edit:   `Rescheduled — ${booking.name} (${booking.bookingNumber})`,
@@ -69,7 +76,7 @@ async function sendBarberEmail(type, booking, to) {
   console.log('✅ Barber email sent to', to, '— id:', data.id)
 }
 
-async function sendClientEmail(type, booking, to) {
+async function sendClientEmail(resend, FROM_EMAIL, type, booking, to) {
   const subjects = {
     new:    `Booking confirmed — ${booking.bookingNumber}`,
     edit:   `Booking rescheduled — ${booking.bookingNumber}`,
